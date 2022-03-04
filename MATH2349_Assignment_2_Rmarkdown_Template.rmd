@@ -1,0 +1,303 @@
+---
+title: "MATH2349 Data Wrangling"
+author: "Yogesh Haresh Bojja(s3789918)"
+subtitle: Assignment 2
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+## Required packages 
+Following are the packages required for the data wrangling. First we install the packages by install.packages() and then we will import it to the workspace by library().
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# This is the R chunk for the required packages
+library(readr)
+library(dplyr)
+library(tidyr)
+library(outliers)
+library(lubridate)
+library(rvest)
+
+```
+
+## Executive Summary 
+In this assignment we have done various data wrangling steps for making our dataset ready for analysis. We are working on three datasets, first dataset is about crime offences in each suburbs of South Australia, second dataset is about the information of the suburbs and the third dataset is about the number of properties present in each suburbs. Dataset after this assignment will be ready for analysis of crime offences with respect to suburbs, day, month, number of properties etc. First we read three datasets and then we join them by left join method on 'suburb' column which is same in all three. We understand the dataset by str() function where we get to know the number of columns, type of columns etc. We have done necessary data conversion of the column SUBURB_NUM to character type. We have created a new  factor column 'crime severity' which will be ordered based on the 'Offence count' variable . In tidy manipulation1, we have checked whether dataset follows tidy principles or not. Two columns 'Reported Date' and 'LEGALSTART' were found not conforming to the tidy principles hence we have cleaned it by separate() function. In tidy manipulation 2, we have created 2 new columns, first column contains day of the week when offence took place while second column contains percentage area of South Australia a suburb occupies. In scan 1, we handled all the missing values  by removing some of them and by replacing others. In scan 2, we checked all the outliers and we found that these outliers were valuable as removing the most populated suburb or largest suburb was irrelevant because probability of an offence occurring is more in such areas. Hence, we did not discard them. Lastly we transformed our data and normalized it where the data was non-symmetric.
+
+
+## Data 
+We are going to work on crime statistics dataset of South Australia. We are having 3 dataset, first(SA_crime.csv) provides information about crime statistics in each suburb of South Australia, second(SA_Suburbsinfo.csv) gives the suburb information, and third(propertycount.csv) gives the properties present in each of these suburbs. Sources of these dataset are given below :
+
+<br><b>SA_crime.csv</b> : "https://data.gov.au/dataset/ds-sa-860126f7-eeb5-4fbc-be44-069aa0467d11/distribution/dist-sa-809b11dd-9944-4406-a0c4-af6a5b332177/details?q="
+<br><br><b>SA_Suburbsinfo.csv</b> : "http://www.dptiapps.com.au/dataportal/Suburbs.csv"
+<br><br><b>propertycount.csv</b> : "https://data.sa.gov.au/data/dataset/public-housing-lettable-stock-by-suburb"
+
+<br><b>SA_crime variable description :</b>
+<br><b>Reported Date =</b> Date of offence occured.
+<br><b>Suburb-Incident =</b> Name of the suburb where offence took place.
+<br><b>Postcode-Incident =</b> Postcode in which suburb is present.
+<br><b>Offence Level 1 Description =</b> Description about offence level 1.
+<br><b>Offence Level 2 Description =</b> Description about offence level 2.
+<br><b>Offence Level 3 Description =</b> Description about offence level 3.
+<br><b>Offence count =</b> Number of offences in on a reported date in respective suburb.
+
+<br><b>SA_Suburbsinfo variable description :</b>
+<br><b>POSTCODE =</b> Postcode in which suburb is present.
+<br><b>SUBURB =</b> Name of the suburb.
+<br><b>SUBURB_NUM =</b> Suburb number ID of each suburb in given postcode.
+<br><b>LEGALSTART =</b> Date from when suburb came into existence.
+<br><b>SHAPE_Leng =</b> Length of a suburb in shapefile, useful for analyzing (.shp) files.
+<br><b>SHAPE_Area =</b> Area of a suburb in shapefile, useful for analyzing (.shp) files.
+
+<br><b>propertycount variable description :</b>
+<br><b>RegionName =</b> Region name of South Australia.
+<br><b>OfficeName =</b> Location of the office.
+<br><b>Suburb =</b> Suburb name.
+<br><b>NumberOfProperties =</b> count of properties present in each suburb.
+
+We have read SA_Crime.csv into crime variable. 2 observations of the data is shown by head().
+```{r}
+# This is the R chunk for the Data Section
+crime <- read_csv("SA_Crime.csv")
+head(crime, 2)
+```
+We have read SA_Suburbsinfo.csv into suburbs variable. 2 observations of the data is shown by head().
+```{r}
+suburbs <- read_csv("SA_Suburbsinfo.csv")
+head(suburbs, 2)
+```
+We have read propertycount.csv into property variable. 2 observations of the data is shown by head().
+```{r}
+property <- read_csv("propertycount.csv")
+head(property, 2)
+```
+Once we have read these 3 datasets, we need to merge them. First let us join 'crime' with 'suburbs' based on the column i.e. 'Suburb-Incident' from 'crime' and 'SUBURB' from 'suburbs'.As I want to keep the count offence of each suburbs irrespective of the match found in 'suburbs'dataset, I will use left join to do so. After the merge is done, We will use this merged dataset and left join it to 'property' dataset based on the matching column. Note that as I want to join only 'NumberOfProperty' columns to the 'merge' data I will subset it by taking  3rd and 4th column.
+As there are two repeated column for postcodes we will delete it and make ready for further tasks.
+```{r}
+#merge the dataset
+merge <- left_join(crime, suburbs, by = c("Suburb - Incident" = "SUBURB"))
+merge <- left_join(merge, property[c(3,4)], by = c("Suburb - Incident" = "Suburb"))
+#delete repeated column
+merge <- subset(merge, select = -c(POSTCODE))
+
+head(merge, 2)
+
+
+```
+
+## Understand 
+Str() functin is useful to investigate about the columns present in our dataset. Hence, we can see that 'Reported Date', 'Suburb-Incident', 'Postcde-Incident', 'Offence Level 1 description', 'Offence Level 2 description', 'Offence Level 3 description', and 'LEGALSTART' are character attribute which is valid, so there is no need to convert here. 'Offence count', 'SHAPE_Leng', 'SHAPE_Area' and NumerOfProperties are numeric which is valid, but the 'SUBURB_NUM' which is showing numeric can be errorsome in future tasks as we can not treat suburb number for numeric calculation as they depict ID/label of the suburb. Therefore we need to convert it to character.
+```{r}
+# This is the R chunk for the Understand Section
+str(merge)
+```
+Code for converting SUBURB_NUM to character is shown below.
+```{r}
+merge$SUBURB_NUM <- as.character(merge$SUBURB_NUM)
+
+```
+We will be creating new column crime_severity. We will achive this by mutate() function. 'case_when' parameter returns value based on the condition. Crime_severity will be low if the 'Offence count; is less that 3, crime_severity will be medium if the 'offence count' lies between 2 and 5, crime_severity will be high if the 'Offence count' lies between 5 and 7, orelse it will be veryhigh for 'offence count' greater that 6.
+<br> After we create the column crime_severity, we will be factoring it as they are factors and have precedence by factor() function. Precedence is set by the parameter ordered = TRUE.
+<br>Output of str() shows the newly created column along with its values and whether its factor or not, it also depicts the 'SUBURB_NUM' columns which we converted to character above as chr.
+```{r}
+#creating new column crime_severity
+merge <- mutate(merge, crime_severity = case_when((`Offence count` < 3) ~ "LOW",
+                                          ((`Offence count` > 2) & (`Offence count` < 5)) ~ "MEDIUM",
+                                          ((`Offence count` > 4) & (`Offence count` < 7)) ~ "HIGH",
+                                          (`Offence count` > 6) ~ "VERY HIGH"
+                                          ))
+#factor crime severity column
+merge$crime_severity <- factor(merge$crime_severity,
+          levels = c("LOW", "MEDIUM", "HIGH", "VERY HIGH"),
+          labels = c("LOW", "MEDIUM", "HIGH", "VERY HIGH"),
+          ordered = TRUE)
+str(merge)
+
+```
+Precedence of the ordered variables are seen below.
+
+```{r}
+head(merge$crime_severity)
+```
+
+##	Tidy & Manipulate Data I 
+Tidy principle states that each observation should have its own row, each value shouls have its own cell. Even though in our dataset each observation is having their individiual row, second principle is violating as 'Reported Date' and 'LEGALSTART' do not have atomic values.
+Both theses columns have month, year and day in one cell. What if we want to access offences occured based on the month, it wont be possible to retrieve theses values with primitive R commands. Hence we need to seperate these values. Seperate() function is used to achieve this, it takes the column name and seperates it into 3 columns by seperator '/' as the date was seperated by '/'. We have sorted the datset based on the 'Offence count' from highest to lowest using arrange() function.
+```{r}
+# This is the R chunk for the Tidy & Manipulate Data I 
+merge <- separate(merge, `Reported Date`, into = c("Reported Day", "Reported Month", "Reported Year"), sep = "/")
+merge <- separate(merge, `LEGALSTART`, into = c("LEGALSTART MONTH", "LEGALSTART DAY", "LEGALSTART YEAR"), sep = "/")
+
+#arrange data on severity
+merge <- arrange(merge, desc(`Offence count`))
+
+```
+
+Tidy data after seperating and amending to second principle is shown below. Data can be seen in descending order of their 'Offence count'.
+```{r}
+head(merge, 3)
+```
+
+##	Tidy & Manipulate Data II 
+We want to create a column 'Day_Of_Week' which will contain the day of week on which the offence was occurred. So as in future if we want to analyse on the offences occurred on wednesday then we could easily get it by using this column. I have created getWeekDay() function which will take year, month, and day as parameter then convert it to date. Created date will be passed to wday() function which returns the integer number of the day i.e. 1 to 7 for sunday to saturday. This integer value is passed to if else block to return a Day.
+<br> Next we have created a vector temp. Values of month, year, and day are passed to getWeekDay() function in for loop and return values are stored in the vector temp. 
+<br>Temp is added to he merge by cbind() function.
+```{r}
+# This is the R chunk for the Tidy & Manipulate Data II 
+getWeekDay <- function(year, month, day){
+  num <- wday(make_date(year = year, month = month, day = day))
+  if(num == 1){
+    return("SUNDAY")
+  } else if (num == 2){
+    return("MONDAY")
+  } else if (num == 3){
+    return("TUESDAY")
+  } else if (num == 4){
+    return("WEDNESDAY")
+  } else if (num == 5){
+    return("THURSDAY")
+  } else if (num == 6){
+    return("FRIDAY")
+  } else if (num == 7){
+    return("SATURDAY")
+  }
+}
+temp <- vector()
+for(i in 1:94937){
+  temp[i] = getWeekDay(merge$`Reported Year`[i], merge$`Reported Month`[i], merge$`Reported Day`[i])  
+}
+merge <- cbind(merge, Day_Of_Week = temp)
+
+```
+
+Next we want to create 'Percent_of_Area_in_SA' column which will store the area percentage of South Australia occupied by the respective suburb. suburbs variable have unique rows hence we used it to find the total area i.e. area of whole South Australia. We have calculated the total sum by sum(). We divide the SHAPE_area of individual suburb with the total_area and then multiply with 100 to get the percentage. We have done this by mutate(). 
+```{r}
+#creating new column - Percentage of suburb in SA
+total_area <- sum(suburbs$SHAPE_Area)
+merge <- mutate(merge, Percent_Of_Area_in_SA = ((merge$SHAPE_Area)/total_area)*100)
+
+```
+Newly created columns 'Day_Of_Week' and 'Percet_of_Area_in_SA' are seen below.
+```{r}
+head(merge, 2)
+```
+
+##	Scan I 
+In the below code we have iterated through all the columns to check whether there are any 'NA' values present. While iterating through the columns each column is passed as parameter to the is.na() function which returns the logical vector. this logical vector is passed to the sum() function. At last the sum of each column along with its name is printedby cat(). 
+```{r}
+# This is the R chunk for the Scan I - Missing Values
+for(i in 1:19){
+  cat(colnames(merge)[i], "=", sum(is.na(merge[,i])),"\n")
+}
+```
+'Suburb-Incident' contains postcode in which the suburb is present. I did not feel it correct to replace the NA values with mode of this column as it may induce the wrong results and defaming a suburb from bad to worst, hence I replaced it with "Unknown" as while analysis we can ignore it. I could have deleted the rows corresponding to the NA value but there would huge data loss.
+<br>Same as above I replaced NAS in 'Postcode_Incident' and 'SUBURB_NUM' with "Unknown". NAs in  'LEGALSTART MONTH', 'LEGALSTART YEAR' and 'LEGALSTART DAY' were replaced by "-".
+<br>One thing observed in the 'NumberOfProperties' column is that almost all the NAs are induced because of the Sexual Assault offence, hence goverment did not disclose the suburb information. Therefore analysing such a data with very high missing value can hamper analysis for other offences too, hence I omitted them.
+```{r}
+merge$`Suburb - Incident`[which(is.na(merge$`Suburb - Incident`))] <- "Unknown"
+merge$`Postcode - Incident`[which(is.na(merge$`Postcode - Incident`))] <- "Unknown"
+merge$SUBURB_NUM[which(is.na(merge$SUBURB_NUM))] <- "Unknown"
+merge$`LEGALSTART MONTH`[which(is.na(merge$`LEGALSTART MONTH`))] <- "-"
+merge$`LEGALSTART YEAR`[which(is.na(merge$`LEGALSTART YEAR`))] <- "-"
+merge$`LEGALSTART DAY`[which(is.na(merge$`LEGALSTART DAY`))] <- "-"
+merge <- merge[!is.na(merge$NumberOfProperties),]
+
+```
+After dealing with the missing values our data has no NAs present.
+```{r}
+for(i in 1:19){
+  cat(colnames(merge)[i], "=", sum(is.na(merge[,i])),"\n")
+}
+```
+Unique() function can be used to retrieve the unique values for each column, so that we can check for unnecessary and inconsistent values.
+Example = for(i in 1:19){ cat(colnames(merge)[i], "=", unique(merge[,i]),"\n") }. Output gets too huge, hence I have not included it in the R chunk. For the dataset I am working on there is no such inconsistent data present.
+
+
+##	Scan II
+Outliers need to be handled appropriately because it may induce the huge error variance, it may make the predictive model weak and it can give biased decisions.
+<br>There are various techniques to handle outliers. 
+<br>1) Tukey's method is used whenever the data is not normally distributed.
+<br>2) Z-score is used when the data is distributed normally.
+<br>Histogram for 3 numeric variables 'SHAPE_Area', 'SHAPE_Leng' and 'NumberOfProperty' plotted below. As all the histograms show non-symmetric distribution we can choose Tukey's method for our analysis. We will be using extreme fencing to detect the outliers i.e. IQRx(-3) to IQRx3.
+```{r}
+hist(merge$SHAPE_Area, xlim = c(0, 0.2), main = "Checking distribution of SHAPE_Area")
+hist(merge$SHAPE_Leng, xlim = c(0, 1), main = "Checking distribution of SHAPE_Leng")
+hist(merge$NumberOfProperties, xlim = c(0, 1000), main = "Checking distribution of No. of Property")
+```
+Boxplot along with its outliers are shown below for all three variables.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+boxplot(merge$SHAPE_Leng, ylim=c(0, 0.25), main = "Outliers for Shape_leng", col = "yellow")
+boxplot(merge$SHAPE_Area, ylim=c(0, 0.0025), main = "Outliers for Shape_Area", col = "blue" )
+boxplot(merge$NumberOfProperties, main = "Outliers for no. of property", col = "orange")
+```
+<h4>Outlier analysis of 'SHAPE_Leng' </h4>
+IQR() function is used to calculate interquartile range of the column 'SHAPE_Leng'. As we are doing extreme fencing we will multiple the IQR with 3 and -3 to get higher and lower bound.
+<br>It is been observed that there are some outliers which lie above the higher bound. Summary() calculates min, max, mean, iqr1, iqr2 of the column.
+```{r}
+iqr1 <- IQR(merge$SHAPE_Leng)
+upperfence <- 3*iqr1
+lowerfence <- -3*iqr1
+summary(merge$SHAPE_Leng)
+cat("UpperFence=",upperfence," Lowerfence=",lowerfence)
+```
+<h4>Outlier analysis of 'SHAPE_Area' </h4>
+For 'SHAPE_Area' it is been observed that maximum value lies well behind the upper fence but there are some values which lie beyond lower bound. Hence some outliers are present.
+```{r}
+iqr2 <- IQR(merge$SHAPE_Area)
+upperfence2 <- 3*iqr2
+lowerfence2 <- -3*iqr2
+summary(merge$SHAPE_Area)
+cat("UpperFence=",upperfence2," Lowerfence=",lowerfence2)
+```
+<h4>Outlier analysis of 'NumberOfProperties' </h4>
+For 'NumberOfProperties' column there are some outliers present beyond the higher bound/ upper fence as maximum value is more than the upperfence.
+```{r}
+iqr3 <- IQR(merge$NumberOfProperties)
+upperfence3 <- 3*iqr3
+lowerfence3 <- -3*iqr3
+summary(merge$NumberOfProperties)
+cat("UpperFence=",upperfence3," Lowerfence=",lowerfence3)
+```
+Outliers found are the probable anomalies in the dataset which may lead problematic. Some outliers degrade the model while some outliers are found to be valuable. We replace, delete, impute the problematic anomalies, But we keep the valuable anomalies as it can tell interesting facts. 
+<br> In our dataset outliers were found for length of the suburb('SHAPE_Leng') i.e. length of the boundary and its area('SHAPE_Area').  But a suburb can be huge. Crowded and huge suburbs will have more Number of properties('NumberOfProperties') present, hence will have more population which will increase the 'Offence count'. Therefore omitting these suburbs will lead to loss of valuable information. As a result, I have decided to keep outliers as it is, instead I will try to reduce the gap between the values by transformation and normalization. 
+
+##	Transform And Normalize
+We have seen the histograms of three numeric variables in the above section. It was observed that the distribution is left-skewed. Hence we need to normalize it. In the summary of numeric column we can  observe that there is huge gap between the scales of these columns. Therefore we need to transform or scale these three numeric columns. Normalization is good option if our data is non-symmetric and has varying scale.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# This is the R chunk for the Transform Section
+summary(merge$SHAPE_Area)
+cat("\n")
+summary(merge$SHAPE_Leng)
+cat("\n")
+summary(merge$NumberOfProperties)
+```
+To reduce skewness in the dataest we multiply it by logarithmic values, roots, squares or reciprocals. Usually these mathematical models do not confirm to reduce skewness for all the dataset, hence we have to perform transformation with multiple values and then choose best from it. After Multiple iterations I found (1/9), (1/3) as a perfect power value for 'SHAPE_Area' and 'SHAPE_Leng'. Before transforming the values of 'NumberOfProperties' we need to normalize them. I have used min-max normalization technique for it. Transformation on the nomalized data is performed again so as to scale it like other 2 variables.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+merge$SHAPE_Area <- merge$SHAPE_Area^(1/9) #transform to one scale
+merge$SHAPE_Leng <- merge$SHAPE_Leng^(1/3) #transform to one scale
+
+minmaxnormalise <- function(x){(x- min(x)) /(max(x)-min(x))} #normalization
+
+merge$NumberOfProperties <- minmaxnormalise(merge$NumberOfProperties)^(1/3) #normalization followed by tranformation  
+
+summary(merge$SHAPE_Area)
+cat("\n")
+summary(merge$SHAPE_Leng)
+cat("\n")
+summary(merge$NumberOfProperties) #output of transormed data
+```
+From the above output we can see that all the columns are been transformed to the same scale. In the output below we can observe that histogram of the columns which were non-symmetrical are now showing almost symmetrical/normal distribution. We can use this data for analysis as symmetric data is preffered over non-symmetric data.
+```{r}
+
+hist(merge$SHAPE_Area, xlim = c(0, 1), main = "Shape_area after Normalization & Transformation")
+hist(merge$SHAPE_Leng, xlim = c(0, 1), main = "Shape_leng after Normalization & Transformation")
+hist(merge$NumberOfProperties, main = "No. of property after Normalization & Transformation") #output of normalization
+```
+
+##	References
+<br>1) Data.gov.au. 2020. Search. [online] Available at: <https://data.gov.au/dataset/ds-sa-860126f7-eeb5-4fbc-be44-069aa0467d11/distribution/dist-sa-809b11dd-9944-4406-a0c4-af6a5b332177/details?q=> [Accessed 20 October 2020].
+<br>2) Dptiapps.com.au. 2020. [online] Available at: <http://www.dptiapps.com.au/dataportal/Suburbs.csv> [Accessed 20 October 2020].
+<br>3) Data.sa.gov.au. 2020. Public Housing Lettable Stock By Suburb - Data.Sa.Gov.Au. [online] Available at: <https://data.sa.gov.au/data/dataset/public-housing-lettable-stock-by-suburb> [Accessed 20 October 2020].
+<br>4) Rare-phoenix-161610.appspot.com. 2020. Sign In - Google Accounts. [online] Available at: <http://rare-phoenix-161610.appspot.com/secured/Module_07.html> [Accessed 20 October 2020].
+<br>5) Rare-phoenix-161610.appspot.com. 2020. Sign In - Google Accounts. [online] Available at: <http://rare-phoenix-161610.appspot.com/secured/Module_06.html> [Accessed 20 October 2020].
+<br>6) Rare-phoenix-161610.appspot.com. 2020. Sign In - Google Accounts. [online] Available at: <http://rare-phoenix-161610.appspot.com/secured/Module_05.html> [Accessed 20 October 2020].
